@@ -28,10 +28,10 @@ $CFG->directorypermissions = 0777;
 $CFG->preventfilelocking=True;
 
 // Force a debugging mode regardless the settings in the site administration
-/* @error_reporting(E_ALL | E_STRICT); // NOT FOR PRODUCTION SERVERS!
+ @error_reporting(E_ALL | E_STRICT); // NOT FOR PRODUCTION SERVERS!
 @ini_set('display_errors', '1');    // NOT FOR PRODUCTION SERVERS!
 $CFG->debug = (E_ALL | E_STRICT);   // === DEBUG_DEVELOPER - NOT FOR PRODUCTION SERVERS!
-$CFG->debugdisplay = 1;  */            // NOT FOR PRODUCTION SERVERS!
+$CFG->debugdisplay = 1;             // NOT FOR PRODUCTION SERVERS!
 
 require_once(__DIR__ . '/lib/setup.php');
 
