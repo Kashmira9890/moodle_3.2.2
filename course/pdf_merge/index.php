@@ -72,7 +72,7 @@ foreach ($allmodules as $key=>$module) {
 	if ($archetype != MOD_ARCHETYPE_RESOURCE) {
 		continue;
 	}
-	
+
 	$availableresources[] = $modname;	// List of all available resource types
 }
 
@@ -126,8 +126,8 @@ foreach ($cms as $cm) {
 	if (!isset($resources[$cm->modname][$cm->instance])) {
 		continue;
 	}
-	//$resource = $resources[$cm->modname][$cm->instance];
-	
+	$resource = $resources[$cm->modname][$cm->instance];
+
 	//$printsection = '';
 	if ($usesections) {
 		if ($cm->sectionnum !== $currentsection) {
@@ -140,45 +140,55 @@ foreach ($cms as $cm) {
 			$currentsection = $cm->sectionnum;
 		}
 	}
-	
+
 	$extra = empty($cm->extra) ? '' : $cm->extra;
 	$icon = '<img src="'.$cm->get_icon_url().'" class="activityicon" alt="'.$cm->get_module_type_name().'" /> ';
 	$class = $cm->visible ? '' : 'class="dimmed"'; // hidden modules are dimmed
-	
-	//--------------------------------------------------------------------------
+
+	//----------------------------------------------------------------------------
 	// Source from mod/resource/view.php....used for getting contenthash of the file
-	
+
 	$context = context_module::instance($cm->id);
 	if ($cm->get_module_type_name() == "File"){
 		$files = $fs->get_area_files($context->id, 'mod_resource', 'content', 0, 'sortorder DESC, id ASC', false); // TODO: this is not very efficient!!
 	} elseif ($cm->get_module_type_name() == "Folder"){
 		// Source from mod/folder/renderer.php
-		// $dir = $fs->get_area_tree($context->id, 'mod_folder', 'content', 0);
+		$folder = $DB->get_record('folder', array('id'=>$cm->instance), '*', MUST_EXIST);
+		$folder_output = $PAGE->get_renderer('mod_folder');
+
+		$foldertree = new folder_tree($folder, $cm);
+		if ($folder->display == FOLDER_DISPLAY_INLINE) {
+			// Display module name as the name of the root directory.
+			$foldertree->dir['dirname'] = $cm->get_formatted_name();
+		}
+		$printfolder = $folder_output->render($foldertree);
+		$dir = $fs->get_area_tree($context->id, 'mod_folder', 'content', 0);
 		$files = $fs->get_area_files($context->id, 'mod_folder', 'content', 0, 'sortorder DESC, id ASC', false); // TODO: this is not very efficient!!
-		$printsection .= "<br><a $class $extra href=\"".$cm->url."\">".$icon.$cm->get_formatted_name()."</a>";
+		// $printsection .= "<br><a $class $extra href=\"".$cm->url."\">".$icon.$cm->get_formatted_name()."</a>";
+		$printsection = $printfolder;
 		// end of source from mod/folder/renderer.php
 	}
-	
+
 	if (count($files) < 1) {
 		//resource_print_filenotfound($resource, $cm, $course);
 		continue;
 	} else {
-		$file = reset($files);	
+		$file = reset($files);
 		$formatted_name = $cm->get_module_type_name() == "File" ? $cm->get_formatted_name() : $file->get_filename();
-		$icon = $OUTPUT->pix_icon('f/pdf-24', $file->get_filename());
+		$icon = '<img src="'.$OUTPUT->pix_url('f/pdf-24', 'moodle').'" class="activityicon" alt="'."File".'" /> ';
 		unset($files);
 	}
-	
+
 	// end of source from mod/resource/view.php
-	//--------------------------------------------------------------------------
-	
+	//---------------------------------------------------------------------------
+
 	$url = moodle_url::make_pluginfile_url($file->get_contextid(), $file->get_component(), $file->get_filearea(), $file->get_itemid(), $file->get_filepath(), $file->get_filename());
 	$contenthash = $file->get_contenthash();
-	
+
 	static $p = 0;
 	$loc[$p] = substr($contenthash,0,2).'/'.substr($contenthash,2,2).'/'.$contenthash;
 	$arr[$p] = $CFG->dataroot."/filedir/".$loc[$p];
-	
+
 	$table->data[] = array (
 			$printsection,
 			"<a $class $extra href=\"".$url."\">".$icon.$formatted_name."</a>",
@@ -279,12 +289,12 @@ $latexfilename = $datadir.$tempfilename;
 $latexfile = $latexfilename.'.tex';
 
 $latexfileinfo = array(
-		'contextid' => $context->id, 		
-		'component' => 'mod_resource',    	
-		'filearea' 	=> 'content',     		
-		'itemid' 	=> 0,               	
-		'filepath' 	=> '/',           		
-		'filename' 	=> $tempfilename.'.tex'); 	
+		'contextid' => $context->id,
+		'component' => 'mod_resource',
+		'filearea' 	=> 'content',
+		'itemid' 	=> 0,
+		'filepath' 	=> '/',
+		'filename' 	=> $tempfilename.'.tex');
 
 $fs->create_file_from_string($latexfileinfo, $texscript);
 
@@ -316,12 +326,12 @@ $stampedpdf = $datadir.uniqid('stampedfile_').".pdf";	// unique filename (with e
 $result2 = shell_exec("pdftk $mergedpdf multistamp ".$latexfilename.".pdf output $stampedpdf");
 
 $stampedfileinfo = array(
-		'contextid' => $context->id, 		
-		'component' => 'mod_resource',    	
-		'filearea' 	=> 'content',     		
-		'itemid' 	=> 0,               	
-		'filepath' 	=> '/',           		
-		'filename' 	=> uniqid('stampedfile_').'.pdf'); 	
+		'contextid' => $context->id,
+		'component' => 'mod_resource',
+		'filearea' 	=> 'content',
+		'itemid' 	=> 0,
+		'filepath' 	=> '/',
+		'filename' 	=> uniqid('stampedfile_').'.pdf');
 
 $fs->create_file_from_pathname($stampedfileinfo, $stampedpdf);
 
