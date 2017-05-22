@@ -27,8 +27,10 @@
  */
 
 require('../../config.php');
-
-$id = required_param('courseid', PARAM_INT);
+require_once 'pdf_download_form.php';
+if(empty($id)){
+	$id = required_param('courseid', PARAM_INT);
+}
 $course = $DB->get_record('course', array('id'=>$id), '*', MUST_EXIST);
 
 require_login($course);
@@ -128,7 +130,7 @@ foreach ($cms as $cm) {
 	}
 	$resource = $resources[$cm->modname][$cm->instance];
 
-	//$printsection = '';
+	$printsection = '';
 	if ($usesections) {
 		if ($cm->sectionnum !== $currentsection) {
 			if ($cm->sectionnum) {
@@ -149,33 +151,12 @@ foreach ($cms as $cm) {
 	// Source from mod/resource/view.php....used for getting contenthash of the file
 
 	$context = context_module::instance($cm->id);
-	if ($cm->get_module_type_name() == "File"){
-		$files = $fs->get_area_files($context->id, 'mod_resource', 'content', 0, 'sortorder DESC, id ASC', false); // TODO: this is not very efficient!!
-	} elseif ($cm->get_module_type_name() == "Folder"){
-		// Source from mod/folder/renderer.php
-		$folder = $DB->get_record('folder', array('id'=>$cm->instance), '*', MUST_EXIST);
-		$folder_output = $PAGE->get_renderer('mod_folder');
-
-		$foldertree = new folder_tree($folder, $cm);
-		if ($folder->display == FOLDER_DISPLAY_INLINE) {
-			// Display module name as the name of the root directory.
-			$foldertree->dir['dirname'] = $cm->get_formatted_name();
-		}
-		$printfolder = $folder_output->render($foldertree);
-		$dir = $fs->get_area_tree($context->id, 'mod_folder', 'content', 0);
-		$files = $fs->get_area_files($context->id, 'mod_folder', 'content', 0, 'sortorder DESC, id ASC', false); // TODO: this is not very efficient!!
-		// $printsection .= "<br><a $class $extra href=\"".$cm->url."\">".$icon.$cm->get_formatted_name()."</a>";
-		$printsection = $printfolder;
-		// end of source from mod/folder/renderer.php
-	}
-
+	$files = $fs->get_area_files($context->id, 'mod_resource', 'content', 0, 'sortorder DESC, id ASC', false); // TODO: this is not very efficient!!
 	if (count($files) < 1) {
 		//resource_print_filenotfound($resource, $cm, $course);
 		continue;
 	} else {
 		$file = reset($files);
-		$formatted_name = $cm->get_module_type_name() == "File" ? $cm->get_formatted_name() : $file->get_filename();
-		$icon = '<img src="'.$OUTPUT->pix_url('f/pdf-24', 'moodle').'" class="activityicon" alt="'."File".'" /> ';
 		unset($files);
 	}
 
@@ -191,7 +172,7 @@ foreach ($cms as $cm) {
 
 	$table->data[] = array (
 			$printsection,
-			"<a $class $extra href=\"".$url."\">".$icon.$formatted_name."</a>",
+			"<a $class $extra href=\"".$url."\">".$icon.$cm->get_formatted_name()."</a>",
 			$file->get_filename(),
 			$file->get_filesize(),
 			$loc[$p]);
@@ -200,63 +181,69 @@ foreach ($cms as $cm) {
 
 echo html_writer::table($table);
 
-// Code for merging all the course pdfs --------------------------------------------------------------------
-// merge all course pdf files and store the merged document at a temporary location
+$mform = new pdf_download_form(null);
+$formdata = array('courseid' => $id);
+$mform->set_data($formdata);
+$mform->display();
 
-$path = $CFG->dataroot."/temp/filestorage";	// create temporary storage location for merged pdf file
-if (!file_exists($path)) {
-	$mkdir = mkdir($path, 0777, true);
-}
-$datadir = $path."/";
+if ($data = $mform->get_data()) {
+	if (!empty($data->save)) {
 
-$mergedpdf = $datadir.uniqid('mergedfile_').".pdf";	// path to the merged pdf document with unique filename
+		// Code for merging all the course pdfs --------------------------------------------------------------------
+		// merge all course pdf files and store the merged document at a temporary location
 
-// merge all the pdf files in the course using pdftk
-$cmd = "pdftk ";
-// add each pdf file to the command
-foreach($arr as $file) {
-	$cmd .= $file." ";
-}
-$cmd .= " output $mergedpdf";
-$result = shell_exec($cmd);
+		$path = $CFG->dataroot."/temp/filestorage";	// create temporary storage location for merged pdf file
+		if (!file_exists($path)) {
+			$mkdir = mkdir($path, 0777, true);
+		}
+		$datadir = $path."/";
 
-// copy the merged pdf document from temp loc to moodledata/filedir/..
-$mergedfileinfo = array(
-		'contextid' => $context->id, 		// ID of context
-		'component' => 'mod_resource',    	// usually = table name
-		'filearea' 	=> 'content',     		// usually = table name
-		'itemid' 	=> 0,               	// usually = ID of row in table
-		'filepath' 	=> '/',           		// any path beginning and ending in /
-		'filename' 	=> uniqid('mergedfile_').'.pdf'); 	// any filename
+		$mergedpdf = $datadir.uniqid('mergedfile_').".pdf";	// path to the merged pdf document with unique filename
 
-$fs->create_file_from_pathname($mergedfileinfo, $mergedpdf);
+		// merge all the pdf files in the course using pdftk
+		$cmd = "pdftk ";
+		// add each pdf file to the command
+		foreach($arr as $file) {
+			$cmd .= $file." ";
+		}
+		$cmd .= " output $mergedpdf";
+		$result = shell_exec($cmd);
 
-$mergedfile = $fs->get_file(
-		$mergedfileinfo['contextid'],
-		$mergedfileinfo['component'],
-		$mergedfileinfo['filearea'],
-		$mergedfileinfo['itemid'],
-		$mergedfileinfo['filepath'],
-		$mergedfileinfo['filename']);
+		// copy the merged pdf document from temp loc to moodledata/filedir/..
+		$mergedfileinfo = array(
+				'contextid' => $context->id, 		// ID of context
+				'component' => 'mod_resource',    	// usually = table name
+				'filearea' 	=> 'content',     		// usually = table name
+				'itemid' 	=> 0,               	// usually = ID of row in table
+				'filepath' 	=> '/',           		// any path beginning and ending in /
+				'filename' 	=> uniqid('mergedfile_').'.pdf'); 	// any filename
 
-$mergedfileurl = moodle_url::make_pluginfile_url(
-		$mergedfile -> get_contextid(),
-		$mergedfile -> get_component(),
-		$mergedfile -> get_filearea(),
-		$mergedfile -> get_itemid(),
-		$mergedfile -> get_filepath(),
-		$mergedfile -> get_filename());
+		$fs->create_file_from_pathname($mergedfileinfo, $mergedpdf);
 
-// echo "<br> Merged File | "."<a $class $extra href=\"".$mergedfileurl."\">".$icon.$mergedfile->get_filename()."</a>";
+		$mergedfile = $fs->get_file(
+				$mergedfileinfo['contextid'],
+				$mergedfileinfo['component'],
+				$mergedfileinfo['filearea'],
+				$mergedfileinfo['itemid'],
+				$mergedfileinfo['filepath'],
+				$mergedfileinfo['filename']);
 
-// create a blank numbered pdf document --------------------------------------------------------------------
+		$mergedfileurl = moodle_url::make_pluginfile_url(
+				$mergedfile -> get_contextid(),
+				$mergedfile -> get_component(),
+				$mergedfile -> get_filearea(),
+				$mergedfile -> get_itemid(),
+				$mergedfile -> get_filepath(),
+				$mergedfile -> get_filename());
 
-// find no. of pages in the merged pdf document
-$noofpages = shell_exec("pdftk $mergedpdf dump_data | grep NumberOfPages | awk '{print $2}'");
+		// create a blank numbered pdf document --------------------------------------------------------------------
 
-// latex script for creating blank numbered pdf document
-$startpage = 1;
-$texscript = '
+		// find no. of pages in the merged pdf document
+		$noofpages = shell_exec("pdftk $mergedpdf dump_data | grep NumberOfPages | awk '{print $2}'");
+
+		// latex script for creating blank numbered pdf document
+		$startpage = 1;
+		$texscript = '
 	 		\documentclass[12pt,a4paper]{article}
 	 		\usepackage{helvet}
 	 		\usepackage{times}
@@ -275,84 +262,75 @@ $texscript = '
 	 		\end{document}
 			';
 
-/*
- // write code to a .tex (latex) file
- $latexfilename = $datadir.uniqid('latexfile_');	// unique filename (with entire path to the file) for the latex document and all the intermediate files (.aux, .log etc.)
- $latexfile = $latexfilename.".tex";
- $tempfile = fopen($latexfile, "w");
- fwrite($tempfile, $texscript);
- fclose($tempfile);
- */
+		$tempfilename = uniqid('latexfile_');
+		$latexfilename = $datadir.$tempfilename;
+		$latexfile = $latexfilename.'.tex';
 
-$tempfilename = uniqid('latexfile_');
-$latexfilename = $datadir.$tempfilename;
-$latexfile = $latexfilename.'.tex';
+		$latexfileinfo = array(
+				'contextid' => $context->id,
+				'component' => 'mod_resource',
+				'filearea' 	=> 'content',
+				'itemid' 	=> 0,
+				'filepath' 	=> '/',
+				'filename' 	=> $tempfilename.'.tex');
 
-$latexfileinfo = array(
-		'contextid' => $context->id,
-		'component' => 'mod_resource',
-		'filearea' 	=> 'content',
-		'itemid' 	=> 0,
-		'filepath' 	=> '/',
-		'filename' 	=> $tempfilename.'.tex');
+		$fs->create_file_from_string($latexfileinfo, $texscript);
 
-$fs->create_file_from_string($latexfileinfo, $texscript);
+		$latexfile1 = $fs->get_file(
+				$latexfileinfo['contextid'],
+				$latexfileinfo['component'],
+				$latexfileinfo['filearea'],
+				$latexfileinfo['itemid'],
+				$latexfileinfo['filepath'],
+				$latexfileinfo['filename']);
 
-$latexfile1 = $fs->get_file(
-		$latexfileinfo['contextid'],
-		$latexfileinfo['component'],
-		$latexfileinfo['filearea'],
-		$latexfileinfo['itemid'],
-		$latexfileinfo['filepath'],
-		$latexfileinfo['filename']);
+		$latexfile1->copy_content_to($latexfile);
 
-$latexfile1->copy_content_to($latexfile);
+		// execute pdflatex with parameter
+		// store the output blank numbered pdf document and all the intermediate files at the temp loc
+		$result1 = shell_exec('pdflatex -aux-directory='.$datadir.' -output-directory='.$datadir.' '.$latexfile.' ');
 
-// execute pdflatex with parameter
-// store the output blank numbered pdf document and all the intermediate files at the temp loc
-$result1 = shell_exec('pdflatex -aux-directory='.$datadir.' -output-directory='.$datadir.' '.$latexfile.' ');
+		// var_dump( $pdflatex );
+		// test for success
+		if (!file_exists($latexfile)){
+			print_r( file_get_contents($latexfilename.".log") );
+		} else {
+			//echo "\nPDF created!\n";
+		}
 
-// var_dump( $pdflatex );
-// test for success
-if (!file_exists($latexfile)){
-	print_r( file_get_contents($latexfilename.".log") );
-} else {
-	//echo "\nPDF created!\n";
+		// merge the blank numbered pdf document with the merged pdf document (containing all course pdfs)
+
+		$stampedpdf = $datadir.uniqid('stampedfile_').".pdf";	// unique filename (with entire path to the file) for the merged and stamped pdf document
+		$result2 = shell_exec("pdftk $mergedpdf multistamp ".$latexfilename.".pdf output $stampedpdf");
+
+		$stampedfileinfo = array(
+				'contextid' => $context->id,
+				'component' => 'mod_resource',
+				'filearea' 	=> 'content',
+				'itemid' 	=> 0,
+				'filepath' 	=> '/',
+				'filename' 	=> uniqid('stampedfile_').'.pdf');
+
+		$fs->create_file_from_pathname($stampedfileinfo, $stampedpdf);
+
+		$stampedfile = $fs->get_file(
+				$stampedfileinfo['contextid'],
+				$stampedfileinfo['component'],
+				$stampedfileinfo['filearea'],
+				$stampedfileinfo['itemid'],
+				$stampedfileinfo['filepath'],
+				$stampedfileinfo['filename']);
+
+		$stampedfileurl = moodle_url::make_pluginfile_url(
+				$stampedfile -> get_contextid(),
+				$stampedfile -> get_component(),
+				$stampedfile -> get_filearea(),
+				$stampedfile -> get_itemid(),
+				$stampedfile -> get_filepath(),
+				$stampedfile -> get_filename());
+
+		echo "<br> Merged PDF Document | "."<a $class $extra href=\"".$stampedfileurl."\">".$icon."Available here!</a>";
+	}
 }
-
-// merge the blank numbered pdf document with the merged pdf document (containing all course pdfs)
-
-$stampedpdf = $datadir.uniqid('stampedfile_').".pdf";	// unique filename (with entire path to the file) for the merged and stamped pdf document
-$result2 = shell_exec("pdftk $mergedpdf multistamp ".$latexfilename.".pdf output $stampedpdf");
-
-$stampedfileinfo = array(
-		'contextid' => $context->id,
-		'component' => 'mod_resource',
-		'filearea' 	=> 'content',
-		'itemid' 	=> 0,
-		'filepath' 	=> '/',
-		'filename' 	=> uniqid('stampedfile_').'.pdf');
-
-$fs->create_file_from_pathname($stampedfileinfo, $stampedpdf);
-
-$stampedfile = $fs->get_file(
-		$stampedfileinfo['contextid'],
-		$stampedfileinfo['component'],
-		$stampedfileinfo['filearea'],
-		$stampedfileinfo['itemid'],
-		$stampedfileinfo['filepath'],
-		$stampedfileinfo['filename']);
-
-$stampedfileurl = moodle_url::make_pluginfile_url(
-		$stampedfile -> get_contextid(),
-		$stampedfile -> get_component(),
-		$stampedfile -> get_filearea(),
-		$stampedfile -> get_itemid(),
-		$stampedfile -> get_filepath(),
-		$stampedfile -> get_filename());
-
-echo "<br> Merged PDF Document -> "."<a $class $extra href=\"".$stampedfileurl."\">".$icon."Click Here!</a>";
-
-//---------------------------------------------------------------------------------------------------------------
 
 echo $OUTPUT->footer();
