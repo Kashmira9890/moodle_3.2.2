@@ -21,7 +21,7 @@ if (!defined('MOODLE_INTERNAL')) {
 
 require_once $CFG->libdir.'/formslib.php';
 
-class pdf_download_form extends moodleform {
+class performmerge_form extends moodleform {
 	function definition() {
 		global $CFG;
 		$mform = $this->_form;

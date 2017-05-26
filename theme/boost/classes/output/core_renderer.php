@@ -628,7 +628,7 @@ class core_renderer extends \core_renderer {
                 // We only add a list to the full settings menu if we didn't include every node in the short menu.
                 if ($skipped) {
                 	$text = "Merge PDF files";
-                	$url = new moodle_url('/course/pdf_merge/index.php', array('courseid' => $this->page->course->id));
+                	$url = new moodle_url('/course/mergefiles/index.php', array('courseid' => $this->page->course->id));
                 	$link = new action_link($url, $text, null, null, new pix_icon('t/download', $text));
                 	$menu->add_secondary_action($link);
 

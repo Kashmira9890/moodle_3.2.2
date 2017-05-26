@@ -16,7 +16,7 @@
 
 /*
  * @package    course
- * @subpackage pdf_merge
+ * @subpackage mergefiles
  * @author
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL
  * @copyright  (C) 1999 onwards Martin Dougiamas  http://dougiamas.com
@@ -27,7 +27,7 @@
  */
 
 require('../../config.php');
-require_once 'pdf_download_form.php';
+require_once 'performmerge_form.php';
 if(empty($id)){
 	$id = required_param('courseid', PARAM_INT);
 }
@@ -48,7 +48,7 @@ $strsizeb		 = get_string('sizeb');
 
 $pluginname		 = "Merge PDF files";
 
-$PAGE->set_url('/course/pdf_merge/index.php', array('id' => $course->id));
+$PAGE->set_url('/course/mergefiles/index.php', array('id' => $course->id));
 $PAGE->set_title($course->shortname.' | '.$pluginname);
 $PAGE->set_heading($course->fullname.' | '.$pluginname);
 $PAGE->navbar->add($pluginname);
@@ -181,7 +181,7 @@ foreach ($cms as $cm) {
 
 echo html_writer::table($table);
 
-$mform = new pdf_download_form(null);
+$mform = new performmerge_form(null);
 $formdata = array('courseid' => $id);
 $mform->set_data($formdata);
 $mform->display();
